@@ -3,10 +3,19 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/nsf/termbox-go"
 )
+
+func writeString(s string) {
+	cells := termbox.CellBuffer()
+
+	for i, c := range s {
+		cells[i].Ch = c
+	}
+
+	termbox.Flush()
+}
 
 func main() {
 	err := termbox.Init()
@@ -16,6 +25,16 @@ func main() {
 	}
 	defer termbox.Close()
 
-	fmt.Fprintf(os.Stderr, "Initialized!\n")
-	time.Sleep(1*time.Second)
+	writeString("Initialized!")
+
+	for {
+		e := termbox.PollEvent()
+		switch e.Type {
+		case termbox.EventKey:
+			switch e.Ch {
+			case 'q':
+				return
+			}
+		}
+	}
 }
