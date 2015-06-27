@@ -8,16 +8,6 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-func writeString(s string) {
-	cells := termbox.CellBuffer()
-
-	for i, c := range s {
-		cells[i].Ch = c
-	}
-
-	termbox.Flush()
-}
-
 func main() {
 	flag.Parse()
 	flag.Usage = func() {
