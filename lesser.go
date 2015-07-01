@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/nsf/termbox-go"
 
@@ -18,13 +19,50 @@ type size struct {
 type Event int
 
 const (
+	// EventQuit requests an application exit.
 	EventQuit Event = iota
+
+	// EventRefresh requests a display refresh.
+	EventRefresh
 )
 
 type Lesser struct {
+	// src is the source file being displayed.
 	src    lineio.LineReader
+
+	// events is used to notify the main goroutine of events.
 	events chan Event
+
+	// mu locks the fields below.
+	mu     sync.Mutex
+
+	// size is the size of the display.
 	size   size
+
+	// line is the line number of the first line of the display.
+	line   int
+}
+
+// scrollUp moves the display up (i.e., decrements the first line number).
+// You cannot scroll beyond the beginning of the file.
+// refreshScreen must be called for the display to actually update.
+func (l *Lesser) scrollUp() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.line > 1 {
+		l.line--
+	}
+}
+
+// scrollDown moves the display down (i.e., increments the first line number).
+// FIXME(prattmic): Nothing prevents scrolling beyond the end of the file.
+// refreshScreen must be called for the display to actually update.
+func (l *Lesser) scrollDown() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.line++
 }
 
 func (l *Lesser) listenEvents() {
@@ -35,16 +73,25 @@ func (l *Lesser) listenEvents() {
 			switch e.Ch {
 			case 'q':
 				l.events <- EventQuit
+			case 'j':
+				l.scrollDown()
+				l.events <- EventRefresh
+			case 'k':
+				l.scrollUp()
+				l.events <- EventRefresh
 			}
 		}
 	}
 }
 
-func (l *Lesser) fillScreen() error {
+func (l *Lesser) refreshScreen() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	for y := 0; y < l.size.y; y++ {
 		buf := make([]byte, l.size.x)
 
-		_, err := l.src.ReadLine(buf, y+1)
+		_, err := l.src.ReadLine(buf, l.line+y)
 		// EOF just means the line was shorter than the display.
 		if err != nil && err != io.EOF {
 			return err
@@ -63,17 +110,24 @@ func (l *Lesser) fillScreen() error {
 func (l *Lesser) Run() {
 	go l.listenEvents()
 
-	err := l.fillScreen()
+	err := l.refreshScreen()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to fill screen: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to refresh screen: %v\n", err)
 		return
 	}
 
-	select {
-	case e := <-l.events:
+	for {
+		e := <-l.events
+
 		switch e {
 		case EventQuit:
 			return
+		case EventRefresh:
+			err = l.refreshScreen()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to refresh screen: %v\n", err)
+				return
+			}
 		}
 	}
 }
@@ -83,7 +137,8 @@ func NewLesser(f *os.File) Lesser {
 
 	return Lesser{
 		src:    lineio.NewLineReader(f),
-		events: make(chan Event, 1),
 		size:   size{x: x, y: y},
+		line:   1,
+		events: make(chan Event, 1),
 	}
 }
