@@ -44,6 +44,13 @@ type Lesser struct {
 	line int64
 }
 
+// lastLine returns the last line on the display.  It may be beyond the end
+// of the file, if the file is short enough.
+// mu must be held on call.
+func (l *Lesser) lastLine() int64 {
+	return l.line + int64(l.size.y) - 1
+}
+
 // scrollUp moves the display up (i.e., decrements the first line number).
 // You cannot scroll beyond the beginning of the file.
 // refreshScreen must be called for the display to actually update.
@@ -62,10 +69,8 @@ func (l *Lesser) scrollDown() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	lastLine := l.line + int64(l.size.y) - 1
-
 	// You can only scroll down if the next line exists.
-	if l.src.LineExists(lastLine + 1) {
+	if l.src.LineExists(l.lastLine() + 1) {
 		l.line++
 	}
 }
@@ -88,7 +93,7 @@ func (l *Lesser) scrollBottom() {
 	l.line = 1
 
 	// TODO(prattmic): binary search
-	for l.src.LineExists(l.line + int64(l.size.y)) {
+	for l.src.LineExists(l.lastLine() + 1) {
 		l.line++
 	}
 }
