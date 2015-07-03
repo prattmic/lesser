@@ -28,19 +28,19 @@ const (
 
 type Lesser struct {
 	// src is the source file being displayed.
-	src    lineio.LineReader
+	src lineio.LineReader
 
 	// events is used to notify the main goroutine of events.
 	events chan Event
 
 	// mu locks the fields below.
-	mu     sync.Mutex
+	mu sync.Mutex
 
 	// size is the size of the display.
-	size   size
+	size size
 
 	// line is the line number of the first line of the display.
-	line   int
+	line int64
 }
 
 // scrollUp moves the display up (i.e., decrements the first line number).
@@ -91,7 +91,7 @@ func (l *Lesser) refreshScreen() error {
 	for y := 0; y < l.size.y; y++ {
 		buf := make([]byte, l.size.x)
 
-		_, err := l.src.ReadLine(buf, l.line+y)
+		_, err := l.src.ReadLine(buf, l.line+int64(y))
 		// EOF just means the line was shorter than the display.
 		if err != nil && err != io.EOF {
 			return err

@@ -6,16 +6,16 @@ import (
 
 func TestIntSliceInsert(t *testing.T) {
 	cases := []struct {
-		insert   []int
-		expected []int
+		insert   []int64
+		expected []int64
 	}{
-		{insert: []int{1, 2, 3}, expected: []int{1, 2, 3}},
-		{insert: []int{3, 2, 1}, expected: []int{1, 2, 3}},
-		{insert: []int{-4, 20, -10, 5}, expected: []int{-10, -4, 5, 20}},
+		{insert: []int64{1, 2, 3}, expected: []int64{1, 2, 3}},
+		{insert: []int64{3, 2, 1}, expected: []int64{1, 2, 3}},
+		{insert: []int64{-4, 20, -10, 5}, expected: []int64{-10, -4, 5, 20}},
 	}
 
 	for _, c := range cases {
-		l := make(intSlice, 0)
+		l := make(sortedSlice, 0)
 
 		for _, v := range c.insert {
 			l.Insert(v)
@@ -36,13 +36,13 @@ func TestIntSliceInsert(t *testing.T) {
 
 func TestIntSliceDelete(t *testing.T) {
 	cases := []struct {
-		slice    intSlice
-		del      []int
-		expected []int
+		slice    sortedSlice
+		del      []int64
+		expected []int64
 	}{
-		{slice: intSlice{1, 2, 3}, del: []int{2}, expected: []int{1, 3}},
-		{slice: intSlice{1, 2, 3}, del: []int{3, 2, 1}, expected: []int{}},
-		{slice: intSlice{-10, -4, 5, 20}, del: []int{-4}, expected: []int{-10, 5, 20}},
+		{slice: sortedSlice{1, 2, 3}, del: []int64{2}, expected: []int64{1, 3}},
+		{slice: sortedSlice{1, 2, 3}, del: []int64{3, 2, 1}, expected: []int64{}},
+		{slice: sortedSlice{-10, -4, 5, 20}, del: []int64{-4}, expected: []int64{-10, 5, 20}},
 	}
 
 	for _, c := range cases {

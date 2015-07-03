@@ -6,11 +6,11 @@ import (
 
 func TestInsert(t *testing.T) {
 	cases := []struct {
-		data map[int]int
-		keys []int
+		data map[int64]int64
+		keys []int64
 	}{
-		{data: map[int]int{1: 2, 3: 4}, keys: []int{1, 3}},
-		{data: map[int]int{4: 0, 1: 0}, keys: []int{1, 4}},
+		{data: map[int64]int64{1: 2, 3: 4}, keys: []int64{1, 3}},
+		{data: map[int64]int64{4: 0, 1: 0}, keys: []int64{1, 4}},
 	}
 
 	for _, c := range cases {
@@ -48,29 +48,29 @@ func TestInsert(t *testing.T) {
 func TestDelete(t *testing.T) {
 	cases := []struct {
 		before Map
-		del    []int
+		del    []int64
 		after  Map
 	}{
 		{
 			before: Map{
-				m: map[int]int{1: 0, 2: 0},
-				k: intSlice{1, 2},
+				m: map[int64]int64{1: 0, 2: 0},
+				k: sortedSlice{1, 2},
 			},
-			del: []int{1},
+			del: []int64{1},
 			after: Map{
-				m: map[int]int{2: 0},
-				k: intSlice{2},
+				m: map[int64]int64{2: 0},
+				k: sortedSlice{2},
 			},
 		},
 		{
 			before: Map{
-				m: map[int]int{1: 0, 2: 0},
-				k: intSlice{1, 2},
+				m: map[int64]int64{1: 0, 2: 0},
+				k: sortedSlice{1, 2},
 			},
-			del: []int{1, 2},
+			del: []int64{1, 2},
 			after: Map{
-				m: map[int]int{},
-				k: intSlice{},
+				m: map[int64]int64{},
+				k: sortedSlice{},
 			},
 		},
 	}
@@ -107,8 +107,8 @@ func TestDelete(t *testing.T) {
 
 func TestNearestLessEqual(t *testing.T) {
 	m := Map{
-		m: map[int]int{2: 20, 4: 40},
-		k: intSlice{2, 4},
+		m: map[int64]int64{2: 20, 4: 40},
+		k: sortedSlice{2, 4},
 	}
 
 	// Nothing less than smallest

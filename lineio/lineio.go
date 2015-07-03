@@ -16,11 +16,11 @@ type LineReader struct {
 
 // scanForLine reads from curOffset (which is on curLine), looking for line,
 // returning the offset of line.
-func (l *LineReader) scanForLine(line, curLine, curOffset int) (offset int, err error) {
+func (l *LineReader) scanForLine(line, curLine, curOffset int64) (offset int64, err error) {
 	for {
 		buf := make([]byte, 128)
 
-		n, err := l.src.ReadAt(buf, int64(curOffset))
+		n, err := l.src.ReadAt(buf, curOffset)
 		// Keep looking as long as *something* is returned
 		if n == 0 && err != nil {
 			return 0, err
@@ -33,7 +33,7 @@ func (l *LineReader) scanForLine(line, curLine, curOffset int) (offset int, err 
 				continue
 			}
 
-			offset := curOffset + i + 1
+			offset := curOffset + int64(i) + 1
 			curLine += 1
 
 			l.offsetCache.Insert(curLine, offset)
@@ -43,12 +43,12 @@ func (l *LineReader) scanForLine(line, curLine, curOffset int) (offset int, err 
 			}
 		}
 
-		curOffset += len(buf)
+		curOffset += int64(len(buf))
 	}
 }
 
 // findLine returns the offset of start of line.
-func (l *LineReader) findLine(line int) (offset int, err error) {
+func (l *LineReader) findLine(line int64) (offset int64, err error) {
 	nearest, offset, err := l.offsetCache.NearestLessEqual(line)
 	if err != nil {
 		return 0, err
@@ -64,7 +64,7 @@ func (l *LineReader) findLine(line int) (offset int, err error) {
 
 // findLineRange returns the offset of the first and last bytes in line.
 // end = -1 if EOF is encountered before the end of line.
-func (l *LineReader) findLineRange(line int) (start, end int, err error) {
+func (l *LineReader) findLineRange(line int64) (start, end int64, err error) {
 	start, err = l.findLine(line)
 	if err != nil {
 		return 0, 0, err
@@ -90,7 +90,7 @@ func (l *LineReader) findLineRange(line int) (start, end int, err error) {
 // It returns the numbers of bytes written and any error encountered.
 // If n < len(p), err is set to a non-nil value explaining why.
 // See io.ReaderAt for full description of return values.
-func (l *LineReader) ReadLine(p []byte, line int) (n int, err error) {
+func (l *LineReader) ReadLine(p []byte, line int64) (n int, err error) {
 	start, end, err := l.findLineRange(line)
 	if err != nil {
 		return 0, err
@@ -100,13 +100,13 @@ func (l *LineReader) ReadLine(p []byte, line int) (n int, err error) {
 	if end >= 0 {
 		// Only read one line worth of data.
 		size := end - start
-		if size < len(p) {
+		if size < int64(len(p)) {
 			p = p[:size]
 			shrunk = true
 		}
 	}
 
-	n, err = l.src.ReadAt(p, int64(start))
+	n, err = l.src.ReadAt(p, start)
 	// We used less than len(p), we must return EOF.
 	if err == nil && shrunk {
 		err = io.EOF

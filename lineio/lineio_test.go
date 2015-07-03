@@ -7,7 +7,7 @@ import (
 )
 
 type lineCase struct {
-	line    int
+	line    int64
 	bufSize int
 	err     error
 	data    string

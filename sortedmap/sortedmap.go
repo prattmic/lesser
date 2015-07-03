@@ -6,14 +6,19 @@ import (
 	"sync"
 )
 
-// intSlice is a sorted slice of unique ints.
-type intSlice sort.IntSlice
+// SearchInt64s implements sort.SearchInts for int64.
+func SearchInt64s(a []int64, x int64) int {
+	return sort.Search(len(a), func(i int) bool { return a[i] >= x })
+}
 
-// Insert inserts value v into the appropriate location in the slice.
-func (s *intSlice) Insert(v int) {
+// sortedSlice is a sorted slice of unique int64s.
+type sortedSlice []int64
+
+// Insert inserts value v int64o the appropriate location in the slice.
+func (s *sortedSlice) Insert(v int64) {
 	// Search returns the index to insert v if it exists,
 	// so check that it doesn't exist before adding it.
-	i := sort.IntSlice(*s).Search(v)
+	i := SearchInt64s(*s, v)
 	if i < len(*s) && (*s)[i] == v {
 		return
 	}
@@ -27,10 +32,10 @@ func (s *intSlice) Insert(v int) {
 }
 
 // Delete deletes the value v from the slice.
-func (s *intSlice) Delete(v int) {
+func (s *sortedSlice) Delete(v int64) {
 	// Search returns the index to insert v if it doesn't exist,
 	// so check that it exists before deleting it.
-	i := sort.IntSlice(*s).Search(v)
+	i := SearchInt64s(*s, v)
 	if i >= len(*s) || (*s)[i] != v {
 		return
 	}
@@ -41,8 +46,8 @@ func (s *intSlice) Delete(v int) {
 // Search returns the index of v in the slice, if exists is true.
 // Otherwise, it is the location v would be inserted.  All indices less
 // than i contain values less than v.
-func (s *intSlice) Search(v int) (i int, exists bool) {
-	i = sort.IntSlice(*s).Search(v)
+func (s *sortedSlice) Search(v int64) (i int, exists bool) {
+	i = SearchInt64s(*s, v)
 	// Does v exist, or is this just the location to insert it.
 	if i < len(*s) && (*s)[i] == v {
 		exists = true
@@ -51,20 +56,20 @@ func (s *intSlice) Search(v int) (i int, exists bool) {
 	return
 }
 
-// Map is a sorted map[int]int.
+// Map is a sorted map[int64]int64.
 type Map struct {
 	// m is the underlying map store
-	m map[int]int
+	m map[int64]int64
 
 	// k is the sorted list of keys
-	k intSlice
+	k sortedSlice
 
 	// mu locks the Map.
 	mu sync.Mutex
 }
 
 // Insert inserts a key, value pair.
-func (m *Map) Insert(k, v int) {
+func (m *Map) Insert(k, v int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -76,13 +81,13 @@ func (m *Map) Insert(k, v int) {
 }
 
 // Delete key from map, must be called with mu held.
-func (m *Map) deleteImpl(k int) {
+func (m *Map) deleteImpl(k int64) {
 	delete(m.m, k)
 	m.k.Delete(k)
 }
 
 // Delete deletes the value stored at k from the map.
-func (m *Map) Delete(k int) {
+func (m *Map) Delete(k int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -91,7 +96,7 @@ func (m *Map) Delete(k int) {
 
 // NearestLessEqual returns the nearest key, value pair that exists in
 // the map with a key <= want.
-func (m *Map) NearestLessEqual(want int) (key, value int, err error) {
+func (m *Map) NearestLessEqual(want int64) (key, value int64, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -114,7 +119,7 @@ func (m *Map) NearestLessEqual(want int) (key, value int, err error) {
 
 func NewMap() Map {
 	return Map{
-		m: make(map[int]int),
-		k: make(intSlice, 0),
+		m: make(map[int64]int64),
+		k: make(sortedSlice, 0),
 	}
 }
