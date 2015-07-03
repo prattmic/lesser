@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sync"
 
 	"github.com/nsf/termbox-go"
@@ -79,9 +80,47 @@ func (l *Lesser) listenEvents() {
 			case 'k':
 				l.scrollUp()
 				l.events <- EventRefresh
+			case 's':
+				l.search()
 			}
 		}
 	}
+}
+
+type searchResult struct {
+	line    int64
+	matches [][]int
+}
+
+func (l *Lesser) search() {
+	// TODO: search more than a fixed regexp
+	reg := regexp.MustCompile("line")
+
+	results := make(chan searchResult, 100)
+
+	searchLine := func(line int64) {
+		r, err := l.src.SearchLine(reg, line)
+		if err != nil {
+			r = nil
+		}
+
+		results <- searchResult{
+			line:    line,
+			matches: r,
+		}
+	}
+
+	// TODO: search more than the first hundred lines :)
+	for i := int64(1); i <= 100; i++ {
+		go searchLine(i)
+	}
+
+	all := make([]searchResult, 0)
+	for len(all) < 100 {
+		all = append(all, <-results)
+	}
+
+	fmt.Fprintf(os.Stderr, "Results: %+v\n", all)
 }
 
 func (l *Lesser) refreshScreen() error {
