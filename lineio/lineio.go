@@ -15,15 +15,20 @@ type LineReader struct {
 }
 
 // scanForLine reads from curOffset (which is on curLine), looking for line,
-// returning the offset of line.
+// returning the offset of line.  If err == io.EOF, offset is the offset of
+// the last valid byte.
 func (l *LineReader) scanForLine(line, curLine, curOffset int64) (offset int64, err error) {
+	lastGoodOffset := int64(-1)
+
 	for {
 		buf := make([]byte, 128)
 
 		n, err := l.src.ReadAt(buf, curOffset)
 		// Keep looking as long as *something* is returned
 		if n == 0 && err != nil {
-			return 0, err
+			// In the event of EOF, callers want to know the last
+			// byte read, to find the last byte in the last line.
+			return lastGoodOffset, err
 		}
 
 		buf = buf[:n]
@@ -44,6 +49,8 @@ func (l *LineReader) scanForLine(line, curLine, curOffset int64) (offset int64, 
 		}
 
 		curOffset += int64(len(buf))
+		// The last byte in the buffer must have been good if we read it.
+		lastGoodOffset = curOffset - 1
 	}
 }
 
@@ -63,7 +70,6 @@ func (l *LineReader) findLine(line int64) (offset int64, err error) {
 }
 
 // findLineRange returns the offset of the first and last bytes in line.
-// end = -1 if EOF is encountered before the end of line.
 func (l *LineReader) findLineRange(line int64) (start, end int64, err error) {
 	start, err = l.findLine(line)
 	if err != nil {
@@ -71,17 +77,18 @@ func (l *LineReader) findLineRange(line int64) (start, end int64, err error) {
 	}
 
 	end, err = l.findLine(line + 1)
-	// EOF means there is no next line.
-	if err == io.EOF {
-		return start, -1, nil
-	}
-	if err != nil {
+	// EOF means there is no next line.  End is the last byte in the file,
+	// if it is positive.
+	if err == io.EOF && end >= 0 {
+		return start, end, nil
+	} else if err != nil {
 		return 0, 0, err
 	}
 
 	// The caller expects end to be the last character in the line,
-	// but findLine returns the start of the next line.
-	end -= 1
+	// but findLine returns the start of the next line.  Subtract
+	// first character in next line and newline at end of previous line.
+	end -= 2
 
 	return start, end, nil
 }
@@ -97,13 +104,11 @@ func (l *LineReader) ReadLine(p []byte, line int64) (n int, err error) {
 	}
 
 	var shrunk bool
-	if end >= 0 {
-		// Only read one line worth of data.
-		size := end - start
-		if size < int64(len(p)) {
-			p = p[:size]
-			shrunk = true
-		}
+	// Only read one line worth of data.
+	size := end - start + 1
+	if size < int64(len(p)) {
+		p = p[:size]
+		shrunk = true
 	}
 
 	n, err = l.src.ReadAt(p, start)
