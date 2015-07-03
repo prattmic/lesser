@@ -2,6 +2,7 @@ package lineio
 
 import (
 	"io"
+	"regexp"
 
 	"github.com/prattmic/lesser/sortedmap"
 )
@@ -118,6 +119,26 @@ func (l *LineReader) ReadLine(p []byte, line int64) (n int, err error) {
 	}
 
 	return n, err
+}
+
+// SearchLine runs Regexp.FindAllIndex on the given line, providing the same
+// return value.
+func (l *LineReader) SearchLine(r *regexp.Regexp, line int64) ([][]int, error) {
+	start, end, err := l.findLineRange(line)
+	if err != nil {
+		return nil, err
+	}
+
+	size := end - start + 1
+	buf := make([]byte, size)
+
+	_, err = l.src.ReadAt(buf, start)
+	// TODO(prattmic): support partial reads
+	if err != nil {
+		return nil, err
+	}
+
+	return r.FindAllIndex(buf, -1), nil
 }
 
 func NewLineReader(src io.ReaderAt) LineReader {

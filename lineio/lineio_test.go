@@ -3,6 +3,8 @@ package lineio
 import (
 	"bytes"
 	"io"
+	"reflect"
+	"regexp"
 	"testing"
 )
 
@@ -140,4 +142,61 @@ func TestReadLine(t *testing.T) {
 		}
 	}
 
+}
+
+func TestSearchLine(t *testing.T) {
+	input := `Line 1
+aaa bbb ccc
+Last line`
+
+	searchCases := []struct {
+		line int64
+		reg  *regexp.Regexp
+		ret  [][]int
+		err  error
+	}{
+		{
+			line: 1,
+			reg:  regexp.MustCompile(`Line 1`),
+			ret:  [][]int{{0, 6}},
+			err:  nil,
+		},
+		{
+			line: 1,
+			reg:  regexp.MustCompile(`^Line 1$`),
+			ret:  [][]int{{0, 6}},
+			err:  nil,
+		},
+		{
+			line: 1,
+			reg:  regexp.MustCompile(`\d`),
+			ret:  [][]int{{5, 6}},
+			err:  nil,
+		},
+		{
+			line: 2,
+			reg:  regexp.MustCompile(`[a-z]+`),
+			ret:  [][]int{{0, 3}, {4, 7}, {8, 11}},
+			err:  nil,
+		},
+		{
+			line: 3,
+			reg:  regexp.MustCompile(`^Last line$`),
+			ret:  [][]int{{0, 9}},
+			err:  nil,
+		},
+	}
+
+	for _, c := range searchCases {
+		r := NewLineReader(bytes.NewReader([]byte(input)))
+
+		ret, err := r.SearchLine(c.reg, c.line)
+		if err != c.err {
+			t.Errorf("SearchLine(%v, %d): err got %v want %v", c.reg, c.line, err, c.err)
+		}
+
+		if !reflect.DeepEqual(ret, c.ret) {
+			t.Errorf("SearchLine(%v, %d) = %v want %v", c.reg, c.line, ret, c.ret)
+		}
+	}
 }
