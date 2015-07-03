@@ -37,7 +37,8 @@ type Lesser struct {
 	// mu locks the fields below.
 	mu sync.Mutex
 
-	// size is the size of the display.
+	// size is the size of the file display.
+	// There is a statusbar beneath the display.
 	size size
 
 	// line is the line number of the first line of the display.
@@ -161,6 +162,15 @@ func (l *Lesser) search() {
 	fmt.Fprintf(os.Stderr, "Results: %+v\n", all)
 }
 
+// statusBar renders the status bar.
+// mu must be held on call.
+func (l *Lesser) statusBar() {
+	// The statusbar is just below the display.
+	// For now, it just has a colon, followed by the cursor.
+	termbox.SetCell(0, l.size.y, ':', 0, 0)
+	termbox.SetCursor(1, l.size.y)
+}
+
 func (l *Lesser) refreshScreen() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -178,6 +188,8 @@ func (l *Lesser) refreshScreen() error {
 			termbox.SetCell(i, y, rune(c), 0, 0)
 		}
 	}
+
+	l.statusBar()
 
 	termbox.Flush()
 
@@ -213,8 +225,9 @@ func NewLesser(f *os.File) Lesser {
 	x, y := termbox.Size()
 
 	return Lesser{
-		src:    lineio.NewLineReader(f),
-		size:   size{x: x, y: y},
+		src: lineio.NewLineReader(f),
+		// Save one line for statusbar.
+		size:   size{x: x, y: y - 1},
 		line:   1,
 		events: make(chan Event, 1),
 	}
