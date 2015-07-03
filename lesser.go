@@ -186,6 +186,7 @@ func (l *Lesser) listenEvents() {
 type searchResult struct {
 	line    int64
 	matches [][]int
+	err     error
 }
 
 func (l *Lesser) search(s string) {
@@ -207,16 +208,36 @@ func (l *Lesser) search(s string) {
 		results <- searchResult{
 			line:    line,
 			matches: r,
+			err:     err,
 		}
 	}
 
-	// TODO: search more than the first hundred lines :)
-	for i := int64(1); i <= 100; i++ {
-		go searchLine(i)
+	nextLine := int64(1)
+	// Spawn initial search goroutines
+	for ; nextLine <= 5; nextLine++ {
+		go searchLine(nextLine)
 	}
 
 	all := make([]searchResult, 0)
-	for len(all) < 100 {
+
+	// Collect results, start searching next lines until we start
+	// hitting EOF.
+	for {
+		ret := <-results
+		all = append(all, ret)
+
+		// We started hitting errors on a previous line,
+		// there is no reason to search later lines.
+		if ret.err != nil {
+			break
+		}
+
+		go searchLine(nextLine)
+		nextLine++
+	}
+
+	// Collect the remaing results.
+	for int64(len(all)) < nextLine-1 {
 		all = append(all, <-results)
 	}
 
