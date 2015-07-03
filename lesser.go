@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"regexp"
 	"sync"
@@ -27,6 +28,17 @@ const (
 	EventRefresh
 )
 
+type Mode int
+
+const (
+	// ModeNormal is the standard mode, allowing file navigation.
+	ModeNormal Mode = iota
+
+	// ModeSearchEntry is search entry mode. Key presses are added
+	// to the search string.
+	ModeSearchEntry
+)
+
 type Lesser struct {
 	// src is the source file being displayed.
 	src lineio.LineReader
@@ -46,6 +58,13 @@ type Lesser struct {
 
 	// line is the line number of the first line of the display.
 	line int64
+
+	// mode is the viewer mode.
+	mode Mode
+
+	// regexp is the search regexp specified by the user.
+	// Must only be modified by the event goroutine.
+	regexp string
 }
 
 // lastLine returns the last line on the display.  It may be beyond the end
@@ -102,30 +121,65 @@ func (l *Lesser) scrollBottom() {
 	}
 }
 
+func (l *Lesser) handleEvent(e termbox.Event) {
+	l.mu.Lock()
+	mode := l.mode
+	l.mu.Unlock()
+
+	if e.Type != termbox.EventKey {
+		return
+	}
+
+	c := e.Ch
+
+	switch mode {
+	case ModeNormal:
+		switch c {
+		case 'q':
+			l.events <- EventQuit
+		case 'j':
+			l.scrollDown()
+			l.events <- EventRefresh
+		case 'k':
+			l.scrollUp()
+			l.events <- EventRefresh
+		case 'g':
+			l.scrollTop()
+			l.events <- EventRefresh
+		case 'G':
+			l.scrollBottom()
+			l.events <- EventRefresh
+		case '/':
+			l.mu.Lock()
+			l.mode = ModeSearchEntry
+			l.mu.Unlock()
+			l.events <- EventRefresh
+		}
+	case ModeSearchEntry:
+		switch c {
+		case 0:
+			switch e.Key {
+			case termbox.KeyEnter:
+				l.search(l.regexp)
+				l.mu.Lock()
+				l.mode = ModeNormal
+				l.regexp = ""
+				l.mu.Unlock()
+				l.events <- EventRefresh
+			}
+		default:
+			l.mu.Lock()
+			l.regexp += string(c)
+			l.mu.Unlock()
+			l.events <- EventRefresh
+		}
+	}
+}
+
 func (l *Lesser) listenEvents() {
 	for {
 		e := termbox.PollEvent()
-		switch e.Type {
-		case termbox.EventKey:
-			switch e.Ch {
-			case 'q':
-				l.events <- EventQuit
-			case 'j':
-				l.scrollDown()
-				l.events <- EventRefresh
-			case 'k':
-				l.scrollUp()
-				l.events <- EventRefresh
-			case 'g':
-				l.scrollTop()
-				l.events <- EventRefresh
-			case 'G':
-				l.scrollBottom()
-				l.events <- EventRefresh
-			case 's':
-				l.search()
-			}
-		}
+		l.handleEvent(e)
 	}
 }
 
@@ -134,9 +188,13 @@ type searchResult struct {
 	matches [][]int
 }
 
-func (l *Lesser) search() {
-	// TODO: search more than a fixed regexp
-	reg := regexp.MustCompile("line")
+func (l *Lesser) search(s string) {
+	reg, err := regexp.Compile(s)
+	if err != nil {
+		// TODO(prattmic): display a better error
+		log.Printf("regexp failed to compile: %v", err)
+		return
+	}
 
 	results := make(chan searchResult, 100)
 
@@ -162,16 +220,32 @@ func (l *Lesser) search() {
 		all = append(all, <-results)
 	}
 
-	fmt.Fprintf(os.Stderr, "Results: %+v\n", all)
+	log.Printf("Results: %+v\n", all)
 }
 
 // statusBar renders the status bar.
 // mu must be held on call.
 func (l *Lesser) statusBar() {
 	// The statusbar is just below the display.
-	// For now, it just has a colon, followed by the cursor.
-	termbox.SetCell(0, l.size.y, ':', 0, 0)
-	termbox.SetCursor(1, l.size.y)
+
+	// Clear the statusbar
+	for i := 0; i < l.size.x; i++ {
+		termbox.SetCell(i, l.size.y, ' ', 0, 0)
+	}
+
+	switch l.mode {
+	case ModeNormal:
+		// Just a colon and a cursor
+		termbox.SetCell(0, l.size.y, ':', 0, 0)
+		termbox.SetCursor(1, l.size.y)
+	case ModeSearchEntry:
+		// / and search string
+		termbox.SetCell(0, l.size.y, '/', 0, 0)
+		for i, c := range l.regexp {
+			termbox.SetCell(1+i, l.size.y, c, 0, 0)
+		}
+		termbox.SetCursor(1+len(l.regexp), l.size.y)
+	}
 }
 
 func (l *Lesser) refreshScreen() error {
@@ -249,5 +323,6 @@ func NewLesser(f *os.File, ts int) Lesser {
 		size:   size{x: x, y: y - 1},
 		line:   1,
 		events: make(chan Event, 1),
+		mode:   ModeNormal,
 	}
 }
