@@ -8,6 +8,8 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
+var tabStop = flag.Int("tabstop", 8, "Number of spaces per tab")
+
 func main() {
 	flag.Parse()
 	flag.Usage = func() {
@@ -34,6 +36,6 @@ func main() {
 	}
 	defer termbox.Close()
 
-	l := NewLesser(f)
+	l := NewLesser(f, *tabStop)
 	l.Run()
 }

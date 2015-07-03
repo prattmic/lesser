@@ -31,6 +31,9 @@ type Lesser struct {
 	// src is the source file being displayed.
 	src lineio.LineReader
 
+	// tabStop is the number of spaces per tab.
+	tabStop int
+
 	// events is used to notify the main goroutine of events.
 	events chan Event
 
@@ -184,8 +187,23 @@ func (l *Lesser) refreshScreen() error {
 			return err
 		}
 
+		var tabOffset int
 		for i, c := range buf {
-			termbox.SetCell(i, y, rune(c), 0, 0)
+			// If there are tabs, we may get to the end of the
+			// display before we run out of characters.
+			if i >= l.size.x {
+				break
+			}
+
+			if c == '\t' {
+				// Clear the tab spaces
+				for j := 0; j < l.tabStop; j++ {
+					termbox.SetCell(tabOffset+j, y, ' ', 0, 0)
+				}
+				tabOffset += l.tabStop - 1
+			} else {
+				termbox.SetCell(tabOffset+i, y, rune(c), 0, 0)
+			}
 		}
 	}
 
@@ -221,11 +239,12 @@ func (l *Lesser) Run() {
 	}
 }
 
-func NewLesser(f *os.File) Lesser {
+func NewLesser(f *os.File, ts int) Lesser {
 	x, y := termbox.Size()
 
 	return Lesser{
-		src: lineio.NewLineReader(f),
+		src:     lineio.NewLineReader(f),
+		tabStop: ts,
 		// Save one line for statusbar.
 		size:   size{x: x, y: y - 1},
 		line:   1,
