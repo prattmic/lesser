@@ -70,6 +70,29 @@ func (l *Lesser) scrollDown() {
 	}
 }
 
+// scrollTop moves to the first line.
+// refreshScreen must be called for the display to actually update.
+func (l *Lesser) scrollTop() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.line = 1
+}
+
+// scrollBottom moves to the last line.
+// refreshScreen must be called for the display to actually update.
+func (l *Lesser) scrollBottom() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.line = 1
+
+	// TODO(prattmic): binary search
+	for l.src.LineExists(l.line + int64(l.size.y)) {
+		l.line++
+	}
+}
+
 func (l *Lesser) listenEvents() {
 	for {
 		e := termbox.PollEvent()
@@ -83,6 +106,12 @@ func (l *Lesser) listenEvents() {
 				l.events <- EventRefresh
 			case 'k':
 				l.scrollUp()
+				l.events <- EventRefresh
+			case 'g':
+				l.scrollTop()
+				l.events <- EventRefresh
+			case 'G':
+				l.scrollBottom()
 				l.events <- EventRefresh
 			case 's':
 				l.search()
