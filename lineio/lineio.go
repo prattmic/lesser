@@ -40,6 +40,19 @@ func (l *LineReader) scanForLine(line, curLine, curOffset int64) (offset int64, 
 			}
 
 			offset := curOffset + int64(i) + 1
+
+			// We haven't read this offset yet; it may not exist.
+			// Read-ahead by a byte to double-check this offset
+			// exists before adding a new line.
+			// This is a common case for files ending in a newline.
+			if offset >= curOffset+int64(len(buf)) {
+				t := make([]byte, 1)
+				_, err = l.src.ReadAt(t, offset)
+				if err != nil {
+					continue
+				}
+			}
+
 			curLine += 1
 
 			l.offsetCache.Insert(curLine, offset)
@@ -92,6 +105,12 @@ func (l *LineReader) findLineRange(line int64) (start, end int64, err error) {
 	end -= 2
 
 	return start, end, nil
+}
+
+// LineExists returns true if the given line is in the file.
+func (l *LineReader) LineExists(line int64) bool {
+	_, err := l.findLine(line)
+	return err == nil
 }
 
 // ReadLine reads up to len(p) bytes from line number line from the source.

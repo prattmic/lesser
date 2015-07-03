@@ -57,13 +57,17 @@ func (l *Lesser) scrollUp() {
 }
 
 // scrollDown moves the display down (i.e., increments the first line number).
-// FIXME(prattmic): Nothing prevents scrolling beyond the end of the file.
 // refreshScreen must be called for the display to actually update.
 func (l *Lesser) scrollDown() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.line++
+	lastLine := l.line + int64(l.size.y) - 1
+
+	// You can only scroll down if the next line exists.
+	if l.src.LineExists(lastLine + 1) {
+		l.line++
+	}
 }
 
 func (l *Lesser) listenEvents() {

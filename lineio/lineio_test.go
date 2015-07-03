@@ -144,6 +144,46 @@ func TestReadLine(t *testing.T) {
 
 }
 
+func TestLineExists(t *testing.T) {
+	input := `Line 1
+Line 2
+Line 3`
+
+	r := NewLineReader(bytes.NewReader([]byte(input)))
+
+	if !r.LineExists(1) {
+		t.Errorf("LineExists(1) = false want true")
+	}
+
+	if !r.LineExists(2) {
+		t.Errorf("LineExists(2) = false want true")
+	}
+
+	if !r.LineExists(3) {
+		t.Errorf("LineExists(3) = false want true")
+	}
+
+	if r.LineExists(4) {
+		t.Errorf("LineExists(4) = true want false")
+	}
+}
+
+// Newline at the end of a file shouldn't count as a line.
+func TestLineExistsNewline(t *testing.T) {
+	input := `Line 1
+`
+
+	r := NewLineReader(bytes.NewReader([]byte(input)))
+
+	if !r.LineExists(1) {
+		t.Errorf("LineExists(1) = false want true")
+	}
+
+	if r.LineExists(2) {
+		t.Errorf("LineExists(2) = true want false")
+	}
+}
+
 func TestSearchLine(t *testing.T) {
 	input := `Line 1
 aaa bbb ccc
