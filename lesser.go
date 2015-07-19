@@ -135,43 +135,45 @@ func (l *Lesser) handleEvent(e termbox.Event) {
 	}
 
 	c := e.Ch
+	k := e.Key
+	// Key is only valid is Ch is 0
+	if c != 0 {
+		k = 0
+	}
 
 	switch mode {
 	case ModeNormal:
-		switch c {
-		case 'q':
+		switch {
+		case c == 'q':
 			l.events <- EventQuit
-		case 'j':
+		case c == 'j':
 			l.scrollDown()
 			l.events <- EventRefresh
-		case 'k':
+		case c == 'k':
 			l.scrollUp()
 			l.events <- EventRefresh
-		case 'g':
+		case c == 'g':
 			l.scrollTop()
 			l.events <- EventRefresh
-		case 'G':
+		case c == 'G':
 			l.scrollBottom()
 			l.events <- EventRefresh
-		case '/':
+		case c == '/':
 			l.mu.Lock()
 			l.mode = ModeSearchEntry
 			l.mu.Unlock()
 			l.events <- EventRefresh
 		}
 	case ModeSearchEntry:
-		switch c {
-		case 0:
-			switch e.Key {
-			case termbox.KeyEnter:
-				r := l.search(l.regexp)
-				l.mu.Lock()
-				l.mode = ModeNormal
-				l.regexp = ""
-				l.searchResults = r
-				l.mu.Unlock()
-				l.events <- EventRefresh
-			}
+		switch {
+		case k == termbox.KeyEnter:
+			r := l.search(l.regexp)
+			l.mu.Lock()
+			l.mode = ModeNormal
+			l.regexp = ""
+			l.searchResults = r
+			l.mu.Unlock()
+			l.events <- EventRefresh
 		default:
 			l.mu.Lock()
 			l.regexp += string(c)
