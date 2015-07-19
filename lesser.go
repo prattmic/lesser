@@ -78,50 +78,66 @@ func (l *Lesser) lastLine() int64 {
 	return l.line + int64(l.size.y) - 1
 }
 
-// scrollUp moves the display up (i.e., decrements the first line number).
-// You cannot scroll beyond the beginning of the file.
-// refreshScreen must be called for the display to actually update.
-func (l *Lesser) scrollUp() {
+// Scroll describes a scroll action.
+type Scroll int
+
+const (
+	// ScrollTop goes to the first line.
+	ScrollTop Scroll = iota
+	// ScrollBottom goes to the last line.
+	ScrollBottom
+	// ScrollUp goes up one line.
+	ScrollUp
+	// ScrollDown goes down one line.
+	ScrollDown
+	// ScrollUpPage goes up one page full.
+	ScrollUpPage
+	// ScrollDownPage goes down one page full.
+	ScrollDownPage
+	// ScrollUpHalfPage goes up one half page full.
+	ScrollUpHalfPage
+	// ScrollDownHalfPage goes down one half page full.
+	ScrollDownHalfPage
+)
+
+// scroll moves the display based on the passed scroll action, without
+// going past the beginning or end of the file.
+func (l *Lesser) scroll(s Scroll) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.line > 1 {
-		l.line--
+	var dest int64
+	var delta int64
+	switch s {
+	case ScrollTop:
+		dest = 1
+		delta = -1
+	case ScrollBottom:
+		// Just try to go to int64 max.
+		dest = 0x7fffffffffffffff
+		delta = 1
+	case ScrollUp:
+		dest = l.line - 1
+		delta = -1
+	case ScrollDown:
+		dest = l.line + 1
+		delta = 1
+	case ScrollUpPage:
+		dest = l.line - int64(l.size.y)
+		delta = -1
+	case ScrollDownPage:
+		dest = l.line + int64(l.size.y)
+		delta = 1
+	case ScrollUpHalfPage:
+		dest = l.line - int64(l.size.y)/2
+		delta = -1
+	case ScrollDownHalfPage:
+		dest = l.line + int64(l.size.y)/2
+		delta = 1
 	}
-}
 
-// scrollDown moves the display down (i.e., increments the first line number).
-// refreshScreen must be called for the display to actually update.
-func (l *Lesser) scrollDown() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	// You can only scroll down if the next line exists.
-	if l.src.LineExists(l.lastLine() + 1) {
-		l.line++
-	}
-}
-
-// scrollTop moves to the first line.
-// refreshScreen must be called for the display to actually update.
-func (l *Lesser) scrollTop() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	l.line = 1
-}
-
-// scrollBottom moves to the last line.
-// refreshScreen must be called for the display to actually update.
-func (l *Lesser) scrollBottom() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	l.line = 1
-
-	// TODO(prattmic): binary search
-	for l.src.LineExists(l.lastLine() + 1) {
-		l.line++
+	for l.line != dest && l.line+delta > 0 && l.src.LineExists(l.lastLine()+delta) {
+		l.line += delta
 	}
 }
 
@@ -147,16 +163,28 @@ func (l *Lesser) handleEvent(e termbox.Event) {
 		case c == 'q':
 			l.events <- EventQuit
 		case c == 'j':
-			l.scrollDown()
+			l.scroll(ScrollDown)
 			l.events <- EventRefresh
 		case c == 'k':
-			l.scrollUp()
+			l.scroll(ScrollUp)
 			l.events <- EventRefresh
 		case c == 'g':
-			l.scrollTop()
+			l.scroll(ScrollTop)
 			l.events <- EventRefresh
 		case c == 'G':
-			l.scrollBottom()
+			l.scroll(ScrollBottom)
+			l.events <- EventRefresh
+		case k == termbox.KeyPgup:
+			l.scroll(ScrollUpPage)
+			l.events <- EventRefresh
+		case k == termbox.KeyPgdn:
+			l.scroll(ScrollDownPage)
+			l.events <- EventRefresh
+		case k == termbox.KeyCtrlU:
+			l.scroll(ScrollUpHalfPage)
+			l.events <- EventRefresh
+		case k == termbox.KeyCtrlD:
+			l.scroll(ScrollDownHalfPage)
 			l.events <- EventRefresh
 		case c == '/':
 			l.mu.Lock()
