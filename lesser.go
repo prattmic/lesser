@@ -65,6 +65,10 @@ type Lesser struct {
 	// regexp is the search regexp specified by the user.
 	// Must only be modified by the event goroutine.
 	regexp string
+
+	// searchResults are the results for the current search.
+	// They should be highlighted.
+	searchResults searchResults
 }
 
 // lastLine returns the last line on the display.  It may be beyond the end
@@ -160,10 +164,11 @@ func (l *Lesser) handleEvent(e termbox.Event) {
 		case 0:
 			switch e.Key {
 			case termbox.KeyEnter:
-				l.search(l.regexp)
+				r := l.search(l.regexp)
 				l.mu.Lock()
 				l.mode = ModeNormal
 				l.regexp = ""
+				l.searchResults = r
 				l.mu.Unlock()
 				l.events <- EventRefresh
 			}
@@ -183,18 +188,48 @@ func (l *Lesser) listenEvents() {
 	}
 }
 
+// searchResult describes search matches on a single line.
 type searchResult struct {
 	line    int64
 	matches [][]int
 	err     error
 }
 
-func (l *Lesser) search(s string) {
+// matchesChar returns true if the search result contains a match for
+// character index c.
+func (s searchResult) matchesChar(c int) bool {
+	for _, match := range s.matches {
+		if len(match) < 2 {
+			continue
+		}
+
+		if c >= match[0] && c < match[1] {
+			return true
+		}
+	}
+	return false
+}
+
+type searchResults []searchResult
+
+// findLine finds the result for a specific line, if any.
+// TODO(prattmic): Make a much more efficient data structure.
+func (s searchResults) findLine(line int64) searchResult {
+	for _, r := range s {
+		if r.line == line {
+			return r
+		}
+	}
+
+	return searchResult{}
+}
+
+func (l *Lesser) search(s string) []searchResult {
 	reg, err := regexp.Compile(s)
 	if err != nil {
 		// TODO(prattmic): display a better error
 		log.Printf("regexp failed to compile: %v", err)
-		return
+		return nil
 	}
 
 	results := make(chan searchResult, 100)
@@ -241,7 +276,7 @@ func (l *Lesser) search(s string) {
 		all = append(all, <-results)
 	}
 
-	log.Printf("Results: %+v\n", all)
+	return all
 }
 
 // statusBar renders the status bar.
@@ -275,12 +310,15 @@ func (l *Lesser) refreshScreen() error {
 
 	for y := 0; y < l.size.y; y++ {
 		buf := make([]byte, l.size.x)
+		line := l.line + int64(y)
 
-		_, err := l.src.ReadLine(buf, l.line+int64(y))
+		_, err := l.src.ReadLine(buf, line)
 		// EOF just means the line was shorter than the display.
 		if err != nil && err != io.EOF {
 			return err
 		}
+
+		highlight := l.searchResults.findLine(line)
 
 		var tabOffset int
 		for i, c := range buf {
@@ -290,6 +328,15 @@ func (l *Lesser) refreshScreen() error {
 				break
 			}
 
+			fg := termbox.ColorDefault
+			bg := termbox.ColorDefault
+
+			// Highlight matches
+			if highlight.matchesChar(i) {
+				fg = termbox.ColorBlack
+				bg = termbox.ColorWhite
+			}
+
 			if c == '\t' {
 				// Clear the tab spaces
 				for j := 0; j < l.tabStop; j++ {
@@ -297,7 +344,7 @@ func (l *Lesser) refreshScreen() error {
 				}
 				tabOffset += l.tabStop - 1
 			} else {
-				termbox.SetCell(tabOffset+i, y, rune(c), 0, 0)
+				termbox.SetCell(tabOffset+i, y, rune(c), fg, bg)
 			}
 		}
 	}
