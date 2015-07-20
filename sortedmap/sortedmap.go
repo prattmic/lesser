@@ -1,10 +1,12 @@
 package sortedmap
 
 import (
-	"fmt"
+	"errors"
 	"sort"
 	"sync"
 )
+
+var ErrNoSuchKey = errors.New("No such key exists.")
 
 // SearchInt64s implements sort.SearchInts for int64.
 func SearchInt64s(a []int64, x int64) int {
@@ -117,10 +119,32 @@ func (m *Map) NearestLessEqual(want int64) (key, value int64, err error) {
 
 	// i - 1 contains the nearest key less than the desired key.
 	if i < 1 {
-		return 0, 0, fmt.Errorf("no key less than %d", want)
+		return 0, 0, ErrNoSuchKey
 	}
 
 	key = m.k[i-1]
+	value = m.m[key]
+
+	return key, value, nil
+}
+
+// NearestGreater returns the nearest key, value pair that exists in
+// the map with a key > want.
+func (m *Map) NearestGreater(want int64) (key, value int64, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// By searching for want + 1, we the lowest possible index for
+	// want + 1, which must either not exist or contain something
+	// larger than want.
+	i, _ := m.k.Search(want + 1)
+
+	// i is off the end of the slice, there is nothing > want.
+	if i >= len(m.k) {
+		return 0, 0, ErrNoSuchKey
+	}
+
+	key = m.k[i]
 	value = m.m[key]
 
 	return key, value, nil

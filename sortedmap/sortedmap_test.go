@@ -127,7 +127,6 @@ func TestGet(t *testing.T) {
 	}
 }
 
-
 func TestNearestLessEqual(t *testing.T) {
 	m := Map{
 		m: map[int64]int64{2: 20, 4: 40},
@@ -136,7 +135,7 @@ func TestNearestLessEqual(t *testing.T) {
 
 	// Nothing less than smallest
 	_, _, err := m.NearestLessEqual(1)
-	if err == nil {
+	if err != ErrNoSuchKey {
 		t.Errorf("want err got nil for NLE(1)")
 	}
 
@@ -174,5 +173,42 @@ func TestNearestLessEqual(t *testing.T) {
 	}
 	if v != 40 {
 		t.Errorf("bad value for NLE(1000): want 40 got %d", k)
+	}
+}
+
+func TestNearestGreaterEqual(t *testing.T) {
+	m := Map{
+		m: map[int64]int64{2: 20, 4: 40},
+		k: sortedSlice{2, 4},
+	}
+
+	// Nothing bigger than biggest
+	_, _, err := m.NearestGreater(5)
+	if err != ErrNoSuchKey {
+		t.Errorf("want ErrNoSuchKey got %v for NG(5)")
+	}
+
+	// One below
+	k, v, err := m.NearestGreater(3)
+	if err != nil {
+		t.Errorf("want nil got err for NG(3): %v", err)
+	}
+	if k != 4 {
+		t.Errorf("bad key for NG(3): want 4 got %d", k)
+	}
+	if v != 40 {
+		t.Errorf("bad value for NG(3): want 40 got %d", k)
+	}
+
+	// Way below
+	k, v, err = m.NearestGreater(-1000)
+	if err != nil {
+		t.Errorf("want nil got err for NG(-1000): %v", err)
+	}
+	if k != 2 {
+		t.Errorf("bad key for NG(-1000): want 2 got %d", k)
+	}
+	if v != 20 {
+		t.Errorf("bad value for NG(-1000): want 20 got %d", k)
 	}
 }
