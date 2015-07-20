@@ -513,11 +513,11 @@ func (l *Lesser) Run() {
 	}
 }
 
-func NewLesser(f *os.File, ts int) Lesser {
+func NewLesser(r io.ReaderAt, ts int) Lesser {
 	x, y := termbox.Size()
 
 	return Lesser{
-		src:     lineio.NewLineReader(f),
+		src:     lineio.NewLineReader(r),
 		tabStop: ts,
 		// Save one line for statusbar.
 		size:   size{x: x, y: y - 1},

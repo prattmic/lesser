@@ -1,16 +1,27 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
 	"runtime/pprof"
+	"syscall"
 
 	"github.com/nsf/termbox-go"
 )
 
 var tabStop = flag.Int("tabstop", 8, "Number of spaces per tab")
 var profile = flag.String("profile", "", "Save profile in this file")
+
+func mmapFile(f *os.File) ([]byte, error) {
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	return syscall.Mmap(int(f.Fd()), 0, int(stat.Size()), syscall.PROT_READ, syscall.MAP_PRIVATE)
+}
 
 func main() {
 	flag.Parse()
@@ -31,6 +42,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	m, err := mmapFile(f)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to mmap file: %v\n", err)
+		os.Exit(1)
+	}
+	defer syscall.Munmap(m)
+
 	err = termbox.Init()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to init: %v\n", err)
@@ -49,6 +67,6 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	l := NewLesser(f, *tabStop)
+	l := NewLesser(bytes.NewReader(m), *tabStop)
 	l.Run()
 }
