@@ -100,6 +100,22 @@ const (
 	ScrollDownHalfPage
 )
 
+// scrollLine tries to scroll the display to the given line,
+// but will not scroll beyond the first or last lines in the file.
+// l.mu must be held when calling scrollLine.
+func (l *Lesser) scrollLine(dest int64) {
+	var delta int64
+	if dest > l.line {
+		delta = 1
+	} else {
+		delta = -1
+	}
+
+	for l.line != dest && l.line+delta > 0 && l.src.LineExists(l.lastLine()+delta) {
+		l.line += delta
+	}
+}
+
 // scroll moves the display based on the passed scroll action, without
 // going past the beginning or end of the file.
 func (l *Lesser) scroll(s Scroll) {
@@ -107,38 +123,27 @@ func (l *Lesser) scroll(s Scroll) {
 	defer l.mu.Unlock()
 
 	var dest int64
-	var delta int64
 	switch s {
 	case ScrollTop:
 		dest = 1
-		delta = -1
 	case ScrollBottom:
 		// Just try to go to int64 max.
 		dest = 0x7fffffffffffffff
-		delta = 1
 	case ScrollUp:
 		dest = l.line - 1
-		delta = -1
 	case ScrollDown:
 		dest = l.line + 1
-		delta = 1
 	case ScrollUpPage:
 		dest = l.line - int64(l.size.y)
-		delta = -1
 	case ScrollDownPage:
 		dest = l.line + int64(l.size.y)
-		delta = 1
 	case ScrollUpHalfPage:
 		dest = l.line - int64(l.size.y)/2
-		delta = -1
 	case ScrollDownHalfPage:
 		dest = l.line + int64(l.size.y)/2
-		delta = 1
 	}
 
-	for l.line != dest && l.line+delta > 0 && l.src.LineExists(l.lastLine()+delta) {
-		l.line += delta
-	}
+	l.scrollLine(dest)
 }
 
 func (l *Lesser) handleEvent(e termbox.Event) {
