@@ -105,6 +105,29 @@ func TestDelete(t *testing.T) {
 	}
 }
 
+func TestGet(t *testing.T) {
+	m := Map{
+		m: map[int64]int64{2: 20, 4: 40},
+		k: sortedSlice{2, 4},
+	}
+
+	// Simple lookup
+	var v int64
+	var ok bool
+	if v, ok = m.Get(2); !ok {
+		t.Errorf("want ok got false for Get(2)")
+	}
+	if v != 20 {
+		t.Errorf("want 20 got %d for Get(2)", v)
+	}
+
+	// Non-existant key
+	if v, ok = m.Get(3); ok {
+		t.Errorf("want not ok got ok for Get(3)")
+	}
+}
+
+
 func TestNearestLessEqual(t *testing.T) {
 	m := Map{
 		m: map[int64]int64{2: 20, 4: 40},

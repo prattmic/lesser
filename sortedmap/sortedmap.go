@@ -94,6 +94,15 @@ func (m *Map) Delete(k int64) {
 	m.deleteImpl(k)
 }
 
+// Get gets the value at a specific key.
+func (m *Map) Get(k int64) (v int64, ok bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	v, ok = m.m[k]
+	return
+}
+
 // NearestLessEqual returns the nearest key, value pair that exists in
 // the map with a key <= want.
 func (m *Map) NearestLessEqual(want int64) (key, value int64, err error) {
