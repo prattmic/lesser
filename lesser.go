@@ -489,6 +489,9 @@ func (l *Lesser) refreshScreen() error {
 }
 
 func (l *Lesser) Run() {
+	// Start populating the LineReader cache, to speed things up later.
+	go l.src.Populate()
+
 	go l.listenEvents()
 
 	err := l.refreshScreen()

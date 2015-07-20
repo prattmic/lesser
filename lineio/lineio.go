@@ -68,6 +68,14 @@ func (l *LineReader) scanForLine(line, curLine, curOffset int64) (offset int64, 
 	}
 }
 
+// Populate scans the file, populating the offsetCache, so that future
+// lookups will be faster.
+func (l *LineReader) Populate() {
+	// Scan from the start of the file to the maximum possible line,
+	// populating the offsetCache along the way.
+	l.scanForLine(int64(0x7fffffffffffffff), 1, 0)
+}
+
 // findLine returns the offset of start of line.
 func (l *LineReader) findLine(line int64) (offset int64, err error) {
 	nearest, offset, err := l.offsetCache.NearestLessEqual(line)
