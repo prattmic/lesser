@@ -220,6 +220,10 @@ func (l *Lesser) handleEvent(e termbox.Event) {
 			l.mode = ModeNormal
 			l.regexp = ""
 			l.searchResults = r
+			// Jump to nearest result
+			if r, ok := l.searchResults.Next(l.line); ok {
+				l.scrollLine(r.line)
+			}
 			l.mu.Unlock()
 			l.events <- EventRefresh
 		default:
