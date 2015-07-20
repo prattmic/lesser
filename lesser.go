@@ -197,6 +197,20 @@ func (l *Lesser) handleEvent(e termbox.Event) {
 			l.mode = ModeSearchEntry
 			l.mu.Unlock()
 			l.events <- EventRefresh
+		case c == 'n':
+			l.mu.Lock()
+			if r, ok := l.searchResults.Next(l.line); ok {
+				l.scrollLine(r.line)
+				l.events <- EventRefresh
+			}
+			l.mu.Unlock()
+		case c == 'N':
+			l.mu.Lock()
+			if r, ok := l.searchResults.Prev(l.line); ok {
+				l.scrollLine(r.line)
+				l.events <- EventRefresh
+			}
+			l.mu.Unlock()
 		}
 	case ModeSearchEntry:
 		switch {
@@ -283,6 +297,37 @@ func (s *searchResults) Get(line int64) (searchResult, bool) {
 	}
 
 	return searchResult{}, false
+}
+
+// Next returns the search result for the nearest line after line,
+// noninclusive, if one exists.
+func (s *searchResults) Next(line int64) (searchResult, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, i, err := s.lines.NearestGreater(line)
+	if err != nil {
+		// Probably ErrNoSuchKey, aka none found.
+		return searchResult{}, false
+	}
+
+	return s.results[i], true
+}
+
+// Prev returns the search result for the nearest line before line,
+// noninclusive, if one exists.
+func (s *searchResults) Prev(line int64) (searchResult, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Search for line - 1, since it may be equal.
+	_, i, err := s.lines.NearestLessEqual(line - 1)
+	if err != nil {
+		// Probably ErrNoSuchKey, aka none found.
+		return searchResult{}, false
+	}
+
+	return s.results[i], true
 }
 
 func (l *Lesser) search(s string) searchResults {
