@@ -67,7 +67,7 @@ type Map struct {
 	k sortedSlice
 
 	// mu locks the Map.
-	mu sync.Mutex
+	mu sync.RWMutex
 }
 
 // Insert inserts a key, value pair.
@@ -98,8 +98,8 @@ func (m *Map) Delete(k int64) {
 
 // Get gets the value at a specific key.
 func (m *Map) Get(k int64) (v int64, ok bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	v, ok = m.m[k]
 	return
@@ -108,8 +108,8 @@ func (m *Map) Get(k int64) (v int64, ok bool) {
 // NearestLessEqual returns the nearest key, value pair that exists in
 // the map with a key <= want.
 func (m *Map) NearestLessEqual(want int64) (key, value int64, err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	i, exists := m.k.Search(want)
 	// Key already exists in the map.
@@ -131,8 +131,8 @@ func (m *Map) NearestLessEqual(want int64) (key, value int64, err error) {
 // NearestGreater returns the nearest key, value pair that exists in
 // the map with a key > want.
 func (m *Map) NearestGreater(want int64) (key, value int64, err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	// By searching for want + 1, we the lowest possible index for
 	// want + 1, which must either not exist or contain something
