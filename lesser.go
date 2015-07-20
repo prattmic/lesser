@@ -334,6 +334,11 @@ func (l *Lesser) statusBar() {
 	}
 }
 
+// alignUp aligns n up to the next multiple of divisor.
+func alignUp(n, divisor int) int {
+	return n + (divisor - (n % divisor))
+}
+
 func (l *Lesser) refreshScreen() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -350,11 +355,9 @@ func (l *Lesser) refreshScreen() error {
 
 		highlight := l.searchResults.findLine(line)
 
-		var tabOffset int
+		var displayColumn int
 		for i, c := range buf {
-			// If there are tabs, we may get to the end of the
-			// display before we run out of characters.
-			if i >= l.size.x {
+			if displayColumn >= l.size.x {
 				break
 			}
 
@@ -368,13 +371,19 @@ func (l *Lesser) refreshScreen() error {
 			}
 
 			if c == '\t' {
+				// Tabs align the display up to the next
+				// multiple of tabstop.
+				next := alignUp(displayColumn, l.tabStop)
+
 				// Clear the tab spaces
-				for j := 0; j < l.tabStop; j++ {
-					termbox.SetCell(tabOffset+j, y, ' ', 0, 0)
+				for j := displayColumn; j < next; j++ {
+					termbox.SetCell(j, y, ' ', 0, 0)
 				}
-				tabOffset += l.tabStop - 1
+
+				displayColumn = next
 			} else {
-				termbox.SetCell(tabOffset+i, y, rune(c), fg, bg)
+				termbox.SetCell(displayColumn, y, rune(c), fg, bg)
+				displayColumn += 1
 			}
 		}
 	}
