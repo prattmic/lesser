@@ -11,6 +11,7 @@ import (
 	"github.com/nsf/termbox-go"
 
 	"github.com/prattmic/lesser/lineio"
+	"github.com/prattmic/lesser/sortedmap"
 )
 
 type size struct {
@@ -245,29 +246,54 @@ func (s searchResult) matchesChar(c int) bool {
 	return false
 }
 
-type searchResults []searchResult
+type searchResults struct {
+	// mu locks the fields below.
+	mu sync.Mutex
 
-// findLine finds the result for a specific line, if any.
-// TODO(prattmic): Make a much more efficient data structure.
-func (s searchResults) findLine(line int64) searchResult {
-	for _, r := range s {
-		if r.line == line {
-			return r
-		}
-	}
+	// lines maps search results for a specific line to an index in results.
+	lines sortedmap.Map
 
-	return searchResult{}
+	// results contains the actual search results, in no particular order.
+	results []searchResult
 }
 
-func (l *Lesser) search(s string) []searchResult {
+func NewSearchResults() searchResults {
+	return searchResults{
+		lines: sortedmap.NewMap(),
+	}
+}
+
+// Add adds a result.
+func (s *searchResults) Add(r searchResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	i := int64(len(s.results))
+	s.results = append(s.results, r)
+	s.lines.Insert(r.line, i)
+}
+
+// Get finds the result for a specific line, returning ok if found
+func (s *searchResults) Get(line int64) (searchResult, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if i, ok := s.lines.Get(line); ok {
+		return s.results[i], true
+	}
+
+	return searchResult{}, false
+}
+
+func (l *Lesser) search(s string) searchResults {
 	reg, err := regexp.Compile(s)
 	if err != nil {
 		// TODO(prattmic): display a better error
 		log.Printf("regexp failed to compile: %v", err)
-		return nil
+		return NewSearchResults()
 	}
 
-	results := make(chan searchResult, 100)
+	resultChan := make(chan searchResult, 100)
 
 	searchLine := func(line int64) {
 		r, err := l.src.SearchLine(reg, line)
@@ -275,7 +301,7 @@ func (l *Lesser) search(s string) []searchResult {
 			r = nil
 		}
 
-		results <- searchResult{
+		resultChan <- searchResult{
 			line:    line,
 			matches: r,
 			err:     err,
@@ -288,17 +314,30 @@ func (l *Lesser) search(s string) []searchResult {
 		go searchLine(nextLine)
 	}
 
-	all := make([]searchResult, 0)
+	results := NewSearchResults()
+
+	var count int64
+
+	waitResult := func() searchResult {
+		ret := <-resultChan
+		count += 1
+
+		// Only store results with matches.
+		if len(ret.matches) > 0 {
+			results.Add(ret)
+		}
+
+		return ret
+	}
 
 	// Collect results, start searching next lines until we start
 	// hitting EOF.
 	for {
-		ret := <-results
-		all = append(all, ret)
+		r := waitResult()
 
 		// We started hitting errors on a previous line,
 		// there is no reason to search later lines.
-		if ret.err != nil {
+		if r.err != nil {
 			break
 		}
 
@@ -307,11 +346,11 @@ func (l *Lesser) search(s string) []searchResult {
 	}
 
 	// Collect the remaing results.
-	for int64(len(all)) < nextLine-1 {
-		all = append(all, <-results)
+	for count < nextLine-1 {
+		waitResult()
 	}
 
-	return all
+	return results
 }
 
 // statusBar renders the status bar.
@@ -358,7 +397,7 @@ func (l *Lesser) refreshScreen() error {
 			return err
 		}
 
-		highlight := l.searchResults.findLine(line)
+		highlight, ok := l.searchResults.Get(line)
 
 		var displayColumn int
 		for i, c := range buf {
@@ -370,7 +409,7 @@ func (l *Lesser) refreshScreen() error {
 			bg := termbox.ColorDefault
 
 			// Highlight matches
-			if highlight.matchesChar(i) {
+			if ok && highlight.matchesChar(i) {
 				fg = termbox.ColorBlack
 				bg = termbox.ColorWhite
 			}
